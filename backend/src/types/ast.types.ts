@@ -1,7 +1,3 @@
-/* =========================================================
-   BLOCK TYPES
-   ========================================================= */
-
 export type BlockType =
   | "heading"
   | "paragraph"
@@ -10,22 +6,13 @@ export type BlockType =
   | "listItem"
   | "quote";
 
-/* =========================================================
-   INLINE CONTENT
-   ========================================================= */
-
 export interface InlineContent {
   text: string;
-
   bold?: boolean;
   italic?: boolean;
   underline?: boolean;
   code?: boolean;
 }
-
-/* =========================================================
-   AST BLOCK
-   ========================================================= */
 
 export interface ASTBlock {
   id: string;
@@ -36,10 +23,6 @@ export interface ASTBlock {
   children?: ASTBlock[];
   metadata?: Record<string, unknown>;
 }
-
-/* =========================================================
-   DOCUMENT AST
-   ========================================================= */
 
 export interface DocumentAST {
   title: string;

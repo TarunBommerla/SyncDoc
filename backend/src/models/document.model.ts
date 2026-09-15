@@ -1,23 +1,14 @@
-import mongoose, { Document, Schema } from "mongoose";
-
-import type {
-  ASTBlock,
-  BlockType,
-  InlineContent,
-} from "../types/ast.types.js";
-
-import { validateAST } from "../utils/ast.validator.js";
+import mongoose from "mongoose";
 
 /* =========================================================
    INLINE CONTENT SCHEMA
    ========================================================= */
 
-const inlineContentSchema = new Schema<InlineContent>(
+const inlineContentSchema = new mongoose.Schema(
   {
     text: {
       type: String,
       required: true,
-      trim: false,
     },
 
     bold: {
@@ -42,121 +33,86 @@ const inlineContentSchema = new Schema<InlineContent>(
   },
   {
     _id: false,
-  }
+  },
 );
 
 /* =========================================================
-   AST BLOCK SCHEMA
+   BLOCK SCHEMA
    ========================================================= */
 
-const astBlockSchema = new Schema<ASTBlock>(
+const blockSchema = new mongoose.Schema(
   {
     id: {
       type: String,
       required: true,
-      trim: true,
     },
 
     type: {
       type: String,
-      enum: [
-        "heading",
-        "paragraph",
-        "code",
-        "list",
-        "listItem",
-        "quote",
-      ] satisfies BlockType[],
       required: true,
+      enum: ["heading", "paragraph", "code", "list", "listItem", "quote"],
     },
 
     content: {
       type: [inlineContentSchema],
-      default: undefined,
+      default: [],
     },
 
     language: {
       type: String,
-      trim: true,
-      default: undefined,
+      default: null,
     },
 
     level: {
       type: Number,
-      min: 1,
-      max: 6,
-      default: undefined,
+      default: null,
     },
 
     metadata: {
-      type: Schema.Types.Mixed,
-      default: undefined,
+      type: Object,
+      default: {},
     },
   },
   {
     _id: false,
-  }
+  },
 );
 
 /* =========================================================
    RECURSIVE CHILDREN
    ========================================================= */
 
-astBlockSchema.add({
+blockSchema.add({
   children: {
-    type: [astBlockSchema],
-    default: undefined,
+    type: [blockSchema],
+    default: [],
   },
 });
-
-/* =========================================================
-   DOCUMENT MODEL INTERFACE
-   ========================================================= */
-
-export interface IDocument extends Document {
-  title: string;
-  children: ASTBlock[];
-  createdAt: Date;
-  updatedAt: Date;
-}
 
 /* =========================================================
    DOCUMENT SCHEMA
    ========================================================= */
 
-const documentSchema = new Schema<IDocument>(
+const documentSchema = new mongoose.Schema(
   {
     title: {
       type: String,
       required: true,
       trim: true,
-      minlength: 1,
-      maxlength: 200,
     },
 
     children: {
-      type: [astBlockSchema],
+      type: [blockSchema],
       default: [],
     },
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 /* =========================================================
-   RECURSIVE AST PRE-SAVE VALIDATION
+   MODEL
    ========================================================= */
 
-documentSchema.pre("save", function () {
-  validateAST(this.children);
-});
-
-/* =========================================================
-   DOCUMENT MODEL
-   ========================================================= */
-
-export const DocumentModel = mongoose.model<IDocument>(
-  "Document",
-  documentSchema
-);
+export const Document = mongoose.model("Document", documentSchema);

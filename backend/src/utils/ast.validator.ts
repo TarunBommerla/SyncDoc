@@ -1,6 +1,15 @@
-import type { ASTBlock, BlockType } from "../types/ast.types.js";
+import type {
+  ASTBlock,
+  BlockType,
+  DocumentAST,
+  InlineContent,
+} from "../types/ast.types.js";
 
-const BLOCK_TYPES: BlockType[] = [
+/* =========================================================
+   VALID BLOCK TYPES
+   ========================================================= */
+
+const validBlockTypes: BlockType[] = [
   "heading",
   "paragraph",
   "code",
@@ -9,151 +18,184 @@ const BLOCK_TYPES: BlockType[] = [
   "quote",
 ];
 
-export const validateAST = (blocks: ASTBlock[]): void => {
-  const visitedIds = new Set<string>();
+/* =========================================================
+   VALIDATE INLINE CONTENT
+   ========================================================= */
 
-  const traverse = (
-    currentBlocks: ASTBlock[],
-    parentId: string | null = null
-  ): void => {
-    for (const block of currentBlocks) {
-      validateBlock(block, parentId, visitedIds);
-
-      if (block.children && block.children.length > 0) {
-        traverse(block.children, block.id);
-      }
-    }
-  };
-
-  traverse(blocks);
-};
-
-const validateBlock = (
-  block: ASTBlock,
-  parentId: string | null,
-  visitedIds: Set<string>
+const validateInlineContent = (
+  content: InlineContent[],
+  blockId: string,
 ): void => {
-  /* ---------------------------------------------
-     ID VALIDATION
-     --------------------------------------------- */
-
-  if (!block.id || block.id.trim().length === 0) {
-    throw new Error(
-      `AST validation failed: block ID is missing. Parent: ${parentId ?? "root"}`
-    );
+  if (!Array.isArray(content)) {
+    throw new Error(`Content of block "${blockId}" must be an array`);
   }
 
-  if (visitedIds.has(block.id)) {
-    throw new Error(
-      `AST validation failed: duplicate block ID "${block.id}"`
-    );
-  }
+  for (const item of content) {
+    if (!item || typeof item !== "object" || typeof item.text !== "string") {
+      throw new Error(`Invalid inline content in block "${blockId}"`);
+    }
 
-  visitedIds.add(block.id);
+    if (typeof item.bold !== "undefined" && typeof item.bold !== "boolean") {
+      throw new Error(`Invalid "bold" value in block "${blockId}"`);
+    }
 
-  /* ---------------------------------------------
-     BLOCK TYPE VALIDATION
-     --------------------------------------------- */
-
-  if (!BLOCK_TYPES.includes(block.type)) {
-    throw new Error(
-      `AST validation failed: invalid block type "${block.type}" in block "${block.id}"`
-    );
-  }
-
-  /* ---------------------------------------------
-     HEADING VALIDATION
-     --------------------------------------------- */
-
-  if (block.type === "heading") {
     if (
-      block.level === undefined ||
-      block.level < 1 ||
-      block.level > 6
+      typeof item.italic !== "undefined" &&
+      typeof item.italic !== "boolean"
     ) {
-      throw new Error(
-        `AST validation failed: heading "${block.id}" must have a level between 1 and 6`
-      );
+      throw new Error(`Invalid "italic" value in block "${blockId}"`);
     }
 
-    validateContent(block);
-  }
-
-  /* ---------------------------------------------
-     PARAGRAPH VALIDATION
-     --------------------------------------------- */
-
-  if (block.type === "paragraph") {
-    validateContent(block);
-  }
-
-  /* ---------------------------------------------
-     CODE BLOCK VALIDATION
-     --------------------------------------------- */
-
-  if (block.type === "code") {
-    if (!block.language || block.language.trim().length === 0) {
-      throw new Error(
-        `AST validation failed: code block "${block.id}" must have a language`
-      );
+    if (
+      typeof item.underline !== "undefined" &&
+      typeof item.underline !== "boolean"
+    ) {
+      throw new Error(`Invalid "underline" value in block "${blockId}"`);
     }
 
-    validateContent(block);
-  }
-
-  /* ---------------------------------------------
-     LIST VALIDATION
-     --------------------------------------------- */
-
-  if (block.type === "list") {
-    if (!block.children || block.children.length === 0) {
-      throw new Error(
-        `AST validation failed: list "${block.id}" must contain at least one child`
-      );
-    }
-  }
-
-  /* ---------------------------------------------
-     LIST ITEM VALIDATION
-     --------------------------------------------- */
-
-  if (block.type === "listItem") {
-    if (!block.children || block.children.length === 0) {
-      throw new Error(
-        `AST validation failed: list item "${block.id}" must contain children`
-      );
-    }
-  }
-
-  /* ---------------------------------------------
-     QUOTE VALIDATION
-     --------------------------------------------- */
-
-  if (block.type === "quote") {
-    if (!block.children || block.children.length === 0) {
-      throw new Error(
-        `AST validation failed: quote "${block.id}" must contain children`
-      );
+    if (typeof item.code !== "undefined" && typeof item.code !== "boolean") {
+      throw new Error(`Invalid "code" value in block "${blockId}"`);
     }
   }
 };
 
 /* =========================================================
-   INLINE CONTENT VALIDATION
+   RECURSIVE BLOCK VALIDATION
    ========================================================= */
 
-const validateContent = (block: ASTBlock): void => {
-  if (!block.content || block.content.length === 0) {
+const validateBlock = (block: ASTBlock, blockIds: Set<string>): void => {
+  /* ---------------------------------------------------------
+     BLOCK OBJECT
+     --------------------------------------------------------- */
+
+  if (!block || typeof block !== "object") {
+    throw new Error("Invalid AST block");
+  }
+
+  /* ---------------------------------------------------------
+     BLOCK ID
+     --------------------------------------------------------- */
+
+  if (!block.id || typeof block.id !== "string") {
+    throw new Error("Every block must have a valid id");
+  }
+
+  /* ---------------------------------------------------------
+     DUPLICATE BLOCK ID
+     --------------------------------------------------------- */
+
+  if (blockIds.has(block.id)) {
+    throw new Error(`Duplicate block id found: "${block.id}"`);
+  }
+
+  blockIds.add(block.id);
+
+  /* ---------------------------------------------------------
+     BLOCK TYPE
+     --------------------------------------------------------- */
+
+  if (!validBlockTypes.includes(block.type)) {
     throw new Error(
-      `AST validation failed: block "${block.id}" of type "${block.type}" must contain content`
+      `Invalid block type "${block.type}" in block "${block.id}"`,
     );
   }
 
-  for (const item of block.content) {
-    if (typeof item.text !== "string") {
+  /* ---------------------------------------------------------
+     HEADING VALIDATION
+     --------------------------------------------------------- */
+
+  if (block.type === "heading") {
+    if (
+      typeof block.level !== "number" ||
+      !Number.isInteger(block.level) ||
+      block.level < 1 ||
+      block.level > 6
+    ) {
       throw new Error(
-        `AST validation failed: inline content in block "${block.id}" must contain text`
+        `Heading block "${block.id}" must have a level between 1 and 6`,
       );
     }
+  }
+
+  /* ---------------------------------------------------------
+     CODE BLOCK VALIDATION
+     --------------------------------------------------------- */
+
+  if (block.type === "code") {
+    if (
+      typeof block.language !== "string" ||
+      block.language.trim().length === 0
+    ) {
+      throw new Error(`Code block "${block.id}" must have a language`);
+    }
+  }
+
+  /* ---------------------------------------------------------
+     CONTENT VALIDATION
+     --------------------------------------------------------- */
+
+  if (block.content !== undefined) {
+    validateInlineContent(block.content, block.id);
+  }
+
+  /* ---------------------------------------------------------
+     CHILDREN VALIDATION
+     --------------------------------------------------------- */
+
+  if (block.children !== undefined) {
+    if (!Array.isArray(block.children)) {
+      throw new Error(`Children of block "${block.id}" must be an array`);
+    }
+
+    for (const child of block.children) {
+      validateBlock(child, blockIds);
+    }
+  }
+};
+
+/* =========================================================
+   VALIDATE COMPLETE DOCUMENT
+   ========================================================= */
+
+export const validateDocumentAST = (document: DocumentAST): void => {
+  /* ---------------------------------------------------------
+     DOCUMENT OBJECT
+     --------------------------------------------------------- */
+
+  if (!document || typeof document !== "object") {
+    throw new Error("Invalid document");
+  }
+
+  /* ---------------------------------------------------------
+     TITLE
+     --------------------------------------------------------- */
+
+  if (
+    typeof document.title !== "string" ||
+    document.title.trim().length === 0
+  ) {
+    throw new Error("Document title is required");
+  }
+
+  /* ---------------------------------------------------------
+     ROOT CHILDREN
+     --------------------------------------------------------- */
+
+  if (!Array.isArray(document.children)) {
+    throw new Error("Document children must be an array");
+  }
+
+  /* ---------------------------------------------------------
+     TRACK ALL BLOCK IDS
+     --------------------------------------------------------- */
+
+  const blockIds = new Set<string>();
+
+  /* ---------------------------------------------------------
+     VALIDATE ROOT BLOCKS
+     --------------------------------------------------------- */
+
+  for (const block of document.children) {
+    validateBlock(block, blockIds);
   }
 };
